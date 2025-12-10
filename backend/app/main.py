@@ -1,7 +1,11 @@
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import secrets
+import os
+from pathlib import Path
 from typing import Dict
 
 from .database import (
@@ -193,3 +197,20 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, username: st
             await websocket.receive_text()
     except WebSocketDisconnect:
         await ws_manager.disconnect_async(websocket, session_id)
+
+
+# Serve static files (frontend) if they exist
+static_dir = Path(__file__).parent.parent / "static"
+if static_dir.exists():
+    # Mount static files for assets
+    app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
+
+    # Catch-all route for SPA - must be last
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Serve index.html for all non-API routes
+        if not full_path.startswith("api/") and not full_path.startswith("ws/"):
+            index_file = static_dir / "index.html"
+            if index_file.exists():
+                return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="Not found")

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useCallback } from "react";
 import type { WebSocketMessage } from "../types/index.js";
 
-const WS_BASE = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
+// Use environment variable or construct from current location (works in Docker and dev)
+const WS_BASE = import.meta.env.VITE_WS_URL || (typeof window !== 'undefined'
+  ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
+  : "ws://localhost:8000");
 
 export function useWebSocket(
   sessionId: string,

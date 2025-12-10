@@ -1,6 +1,7 @@
 import type { Card, SessionResponse, CategoryType } from "../types/index.js";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// Use environment variable or default to current origin (works in Docker and dev)
+const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : "http://localhost:8000");
 
 export async function createSession(): Promise<{ session_id: string }> {
   const response = await fetch(`${API_BASE}/api/session/create`, {

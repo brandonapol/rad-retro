@@ -1,0 +1,31 @@
+# Python
+backend/__pycache__
+backend/**/__pycache__
+backend/*.pyc
+backend/**/*.pyc
+backend/.pytest_cache
+backend/venv
+backend/.env
+*.db
+
+# Node
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
