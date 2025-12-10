@@ -12,7 +12,7 @@ export function useWebSocket(
   onMessage: (message: WebSocketMessage) => void
 ) {
   const ws = useRef<WebSocket | null>(null);
-  const reconnectTimeout = useRef<number>();
+  const reconnectTimeout = useRef<number | undefined>(undefined);
   const onMessageRef = useRef(onMessage);
 
   console.log("[FRONTEND WS HOOK] Called with:", { sessionId, username, onMessageType: typeof onMessage });

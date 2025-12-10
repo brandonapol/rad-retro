@@ -6,5 +6,7 @@ afterEach(() => {
   cleanup()
 })
 
-globalThis.expect = expect
-globalThis.vi = vi
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+;(globalThis as any).expect = expect
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+;(globalThis as any).vi = vi

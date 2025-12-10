@@ -6,7 +6,7 @@ interface AddCardButtonProps {
   onAdd: (content: string) => void;
 }
 
-export function AddCardButton({ category, onAdd }: AddCardButtonProps) {
+export function AddCardButton({ category: _category, onAdd }: AddCardButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [content, setContent] = useState("");
 
