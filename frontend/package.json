@@ -35,6 +35,7 @@
     "jsdom": "^27.3.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.1",
+    "ttf2woff2": "^8.0.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^5.4.10",

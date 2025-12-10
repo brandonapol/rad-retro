@@ -205,6 +205,11 @@ if static_dir.exists():
     # Mount static files for assets
     app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
 
+    # Mount static files for fonts
+    fonts_dir = static_dir / "fonts"
+    if fonts_dir.exists():
+        app.mount("/fonts", StaticFiles(directory=fonts_dir), name="fonts")
+
     # Catch-all route for SPA - must be last
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
