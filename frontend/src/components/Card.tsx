@@ -17,15 +17,15 @@ export function Card({ card, onDelete }: CardProps) {
   };
 
   return (
-    <div className="bg-yellow-100 p-4 rounded-lg shadow-md border-2 border-yellow-200 relative group">
+    <div className="bg-white p-4 rounded-lg shadow-md border border-gray-200 relative group hover:shadow-lg transition-shadow">
       <button
         onClick={handleDelete}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-800 font-bold"
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-600 font-bold text-xl"
         aria-label="Delete card"
       >
         ×
       </button>
-      <p className="text-gray-800 mb-2 pr-6">{card.content}</p>
+      <p className="text-gray-900 mb-2 pr-6">{card.content}</p>
       <p className="text-xs text-gray-600">- {card.author}</p>
     </div>
   );

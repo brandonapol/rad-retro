@@ -7,18 +7,39 @@ A lightweight, real-time collaborative retrospective board application for agile
 - Real-time collaboration via WebSockets
 - Four retro categories: What Went Well, What Went Badly, Continue Doing, Kudos
 - Action items with checkbox tracking
-- Ephemeral sessions (24-hour retention)
+- Board naming and listing
 - Simple URL-based sharing
+- Username persistence via localStorage
+- CSV export functionality
 - No authentication required
 - Mobile responsive design
 
 ## Quick Start
 
+**🐳 Deploy with Docker (recommended):**
+```bash
+./docker-start.sh
+# Visit http://localhost:8000
+```
+
+**💻 Or run locally for development:**
+```bash
+make install && make watch
+# Visit http://localhost:5173
+```
+
+---
+
 ### Prerequisites
 
+**For local development:**
 - Python 3.11+
 - Node.js 20+ (or bun)
 - Make
+
+**For Docker deployment:**
+- Docker
+- Docker Compose
 
 ### Run Locally
 
@@ -109,23 +130,49 @@ The frontend uses:
 - Tailwind CSS for styling
 - React Router for navigation
 
-## Docker
+## Docker Deployment
 
-Run with Docker Compose:
+### Quick Start with Docker
+
+The easiest way to deploy with Docker:
 
 ```bash
-cd backend
-docker-compose up --build
+./docker-start.sh
 ```
+
+This script will:
+- Build the Docker image (frontend + backend in one container)
+- Start the container with database persistence
+- Wait for the service to be healthy
+- Display the application URL
+
+**Or manually with docker-compose:**
+
+```bash
+docker-compose up -d --build
+```
+
+Access the application at: http://localhost:8000
+
+### Docker Features
+
+- **Single container** - Frontend and backend bundled together
+- **Persistent data** - Database stored in Docker volume
+- **Health checks** - Automatic monitoring
+- **Production-ready** - Optimized build with Vite
+
+See [README.docker.md](README.docker.md) for detailed Docker documentation.
 
 ## Environment Variables
 
 ### Backend
-- `DATABASE_PATH` - SQLite database path (default: `/tmp/retro.db`)
+- `DATABASE_PATH` - SQLite database path (default: `/tmp/retro.db` local, `/data/retro.db` Docker)
 
 ### Frontend
-- `VITE_API_URL` - Backend API URL (default: `http://localhost:8000`)
-- `VITE_WS_URL` - WebSocket URL (default: `ws://localhost:8000`)
+- `VITE_API_URL` - Backend API URL (optional - auto-detects in Docker)
+- `VITE_WS_URL` - WebSocket URL (optional - auto-constructed in Docker)
+
+See `.env.example` for configuration templates.
 
 ## Tech Stack
 
