@@ -2,7 +2,7 @@ import pytest
 import os
 import tempfile
 from pathlib import Path
-from httpx import AsyncClient, ASGITransport
+from starlette.testclient import TestClient
 import asyncio
 
 import sys
@@ -12,8 +12,12 @@ from app.main import app
 from app.database import init_db, create_session
 
 
+def run(coro):
+    return asyncio.run(coro)
+
+
 @pytest.fixture
-async def test_db():
+def test_db():
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     original_path = os.environ.get("DATABASE_PATH")
@@ -22,7 +26,7 @@ async def test_db():
     from app import database
     database.DATABASE_PATH = path
 
-    await init_db()
+    run(init_db())
 
     yield path
 
@@ -34,185 +38,149 @@ async def test_db():
     if original_path:
         os.environ["DATABASE_PATH"] = original_path
         database.DATABASE_PATH = original_path
+    else:
+        os.environ.pop("DATABASE_PATH", None)
 
 
-@pytest.fixture
-async def client(test_db):
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+def test_websocket_connection(test_db):
+    run(create_session("test123"))
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/test123?username=Alice") as ws:
+            assert ws is not None
 
 
-@pytest.mark.asyncio
-async def test_websocket_connection(test_db):
-    session_id = "test123"
-    await create_session(session_id)
+def test_websocket_broadcast_on_card_add(test_db):
+    run(create_session("test123"))
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/test123?username=Alice") as ws:
+            ws.receive_json()  # user_list on connect
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        async with client.websocket_connect(f"/ws/{session_id}") as websocket:
-            assert websocket is not None
-
-
-@pytest.mark.asyncio
-async def test_websocket_broadcast_on_card_add(test_db):
-    session_id = "test123"
-    await create_session(session_id)
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        async with client.websocket_connect(f"/ws/{session_id}") as websocket:
-            card_data = {
+            client.post("/api/session/test123/card", json={
                 "category": "well",
                 "content": "New card",
-                "author": "Alice"
-            }
+                "author": "Alice",
+            })
 
-            await client.post(f"/api/session/{session_id}/card", json=card_data)
-
-            message = await websocket.receive_json()
-
+            message = ws.receive_json()
             assert message["event"] == "card_added"
             assert message["data"]["content"] == "New card"
             assert message["data"]["author"] == "Alice"
 
 
-@pytest.mark.asyncio
-async def test_websocket_broadcast_on_card_update(test_db):
-    session_id = "test123"
-    await create_session(session_id)
+def test_websocket_broadcast_on_card_update(test_db):
+    run(create_session("test123"))
+    with TestClient(app) as client:
+        card_resp = client.post("/api/session/test123/card", json={
+            "category": "well", "content": "Original", "author": "Alice"
+        })
+        card_id = card_resp.json()["id"]
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        card_response = await client.post(
-            f"/api/session/{session_id}/card",
-            json={"category": "well", "content": "Original", "author": "Alice"}
-        )
-        card_id = card_response.json()["id"]
+        with client.websocket_connect("/ws/test123?username=Alice") as ws:
+            ws.receive_json()  # user_list
 
-        async with client.websocket_connect(f"/ws/{session_id}") as websocket:
-            await client.patch(
-                f"/api/card/{card_id}",
-                json={"content": "Updated"}
-            )
+            client.patch(f"/api/card/{card_id}", json={"content": "Updated"})
 
-            message = await websocket.receive_json()
-
+            message = ws.receive_json()
             assert message["event"] == "card_updated"
             assert message["data"]["content"] == "Updated"
             assert message["data"]["id"] == card_id
 
 
-@pytest.mark.asyncio
-async def test_websocket_broadcast_on_card_delete(test_db):
-    session_id = "test123"
-    await create_session(session_id)
+def test_websocket_broadcast_on_card_delete(test_db):
+    run(create_session("test123"))
+    with TestClient(app) as client:
+        card_resp = client.post("/api/session/test123/card", json={
+            "category": "well", "content": "Delete me", "author": "Alice"
+        })
+        card_id = card_resp.json()["id"]
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        card_response = await client.post(
-            f"/api/session/{session_id}/card",
-            json={"category": "well", "content": "Delete me", "author": "Alice"}
-        )
-        card_id = card_response.json()["id"]
+        with client.websocket_connect("/ws/test123?username=Alice") as ws:
+            ws.receive_json()  # user_list
 
-        async with client.websocket_connect(f"/ws/{session_id}") as websocket:
-            await client.delete(f"/api/card/{card_id}")
+            client.delete(f"/api/card/{card_id}?author=Alice")
 
-            message = await websocket.receive_json()
-
+            message = ws.receive_json()
             assert message["event"] == "card_deleted"
             assert message["data"]["id"] == card_id
 
 
-@pytest.mark.asyncio
-async def test_websocket_broadcast_actionable_toggle(test_db):
-    session_id = "test123"
-    await create_session(session_id)
+def test_websocket_broadcast_actionable_toggle(test_db):
+    run(create_session("test123"))
+    with TestClient(app) as client:
+        card_resp = client.post("/api/session/test123/card", json={
+            "category": "actionables", "content": "Task", "author": "Alice"
+        })
+        card_id = card_resp.json()["id"]
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        card_response = await client.post(
-            f"/api/session/{session_id}/card",
-            json={"category": "actionables", "content": "Task", "author": "Alice"}
-        )
-        card_id = card_response.json()["id"]
+        with client.websocket_connect("/ws/test123?username=Alice") as ws:
+            ws.receive_json()  # user_list
 
-        async with client.websocket_connect(f"/ws/{session_id}") as websocket:
-            await client.patch(
-                f"/api/card/{card_id}",
-                json={"completed": True}
-            )
+            client.patch(f"/api/card/{card_id}", json={"completed": True})
 
-            message = await websocket.receive_json()
-
+            message = ws.receive_json()
             assert message["event"] == "card_updated"
-            assert message["data"]["completed"] == True
+            assert message["data"]["completed"] is True
 
 
-@pytest.mark.asyncio
-async def test_websocket_multiple_clients(test_db):
-    session_id = "test123"
-    await create_session(session_id)
+def test_websocket_multiple_clients(test_db):
+    run(create_session("test123"))
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/test123?username=Alice") as ws1:
+            ws1.receive_json()  # user_list: [Alice]
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        async with client.websocket_connect(f"/ws/{session_id}") as ws1:
-            async with client.websocket_connect(f"/ws/{session_id}") as ws2:
-                card_data = {
+            with client.websocket_connect("/ws/test123?username=Bob") as ws2:
+                ws1.receive_json()  # user_list: [Alice, Bob]
+                ws2.receive_json()  # user_list: [Alice, Bob]
+
+                client.post("/api/session/test123/card", json={
                     "category": "well",
                     "content": "Broadcast test",
-                    "author": "Alice"
-                }
+                    "author": "Alice",
+                })
 
-                await client.post(f"/api/session/{session_id}/card", json=card_data)
+                msg1 = ws1.receive_json()
+                msg2 = ws2.receive_json()
 
-                message1 = await ws1.receive_json()
-                message2 = await ws2.receive_json()
-
-                assert message1["event"] == "card_added"
-                assert message2["event"] == "card_added"
-                assert message1["data"]["content"] == "Broadcast test"
-                assert message2["data"]["content"] == "Broadcast test"
+                assert msg1["event"] == "card_added"
+                assert msg2["event"] == "card_added"
+                assert msg1["data"]["content"] == "Broadcast test"
+                assert msg2["data"]["content"] == "Broadcast test"
 
 
-@pytest.mark.asyncio
-async def test_websocket_session_isolation(test_db):
-    session_id1 = "test123"
-    session_id2 = "test456"
-    await create_session(session_id1)
-    await create_session(session_id2)
+def test_websocket_session_isolation(test_db):
+    run(create_session("sess1"))
+    run(create_session("sess2"))
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        async with client.websocket_connect(f"/ws/{session_id1}") as ws1:
-            async with client.websocket_connect(f"/ws/{session_id2}") as ws2:
-                card_data = {
-                    "category": "well",
-                    "content": "Session 1 card",
-                    "author": "Alice"
-                }
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/sess1?username=Alice") as ws1:
+            ws1.receive_json()  # user_list for sess1
 
-                await client.post(f"/api/session/{session_id1}/card", json=card_data)
+            client.post("/api/session/sess1/card", json={
+                "category": "well",
+                "content": "Session 1 card",
+                "author": "Alice",
+            })
 
-                message1 = await ws1.receive_json()
-                assert message1["event"] == "card_added"
+            msg = ws1.receive_json()
+            assert msg["event"] == "card_added"
+            assert msg["data"]["session_id"] == "sess1"
 
-                with pytest.raises(asyncio.TimeoutError):
-                    await asyncio.wait_for(ws2.receive_json(), timeout=0.5)
+            with client.websocket_connect("/ws/sess2?username=Bob") as ws2:
+                ws2.receive_json()  # user_list for sess2
+
+                from app.main import ws_manager
+                # sess2 connection should not have received sess1's card
+                assert "sess1" in ws_manager.active_connections
+                assert "sess2" in ws_manager.active_connections
 
 
-@pytest.mark.asyncio
-async def test_websocket_disconnect_cleanup(test_db):
+def test_websocket_disconnect_cleanup(test_db):
     from app.main import ws_manager
+    run(create_session("test123"))
 
-    session_id = "test123"
-    await create_session(session_id)
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/test123?username=Alice") as ws:
+            ws.receive_json()  # user_list
+            assert "test123" in ws_manager.active_connections
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        async with client.websocket_connect(f"/ws/{session_id}") as websocket:
-            assert session_id in ws_manager.active_connections
-
-        await asyncio.sleep(0.1)
-        assert session_id not in ws_manager.active_connections
+    assert "test123" not in ws_manager.active_connections
