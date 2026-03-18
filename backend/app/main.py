@@ -1,12 +1,16 @@
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
+import asyncio
 import secrets
 import os
 from pathlib import Path
 from typing import Dict
+
+SESSION_RETENTION_HOURS = int(os.getenv("SESSION_RETENTION_HOURS", "336"))  # 14 days default
+MAX_CARDS_PER_SESSION = int(os.getenv("MAX_CARDS_PER_SESSION", "200"))
 
 from .database import (
     init_db,
@@ -34,10 +38,22 @@ from .models import (
 from .websocket_manager import WebSocketManager
 
 
+async def _cleanup_loop():
+    while True:
+        await asyncio.sleep(3600)
+        await cleanup_old_sessions(hours=SESSION_RETENTION_HOURS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    task = asyncio.create_task(_cleanup_loop())
     yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(lifespan=lifespan)
@@ -59,9 +75,14 @@ async def health_check():
 
 @app.post("/api/session/create", response_model=CreateSessionResponse)
 async def create_new_session():
-    session_id = secrets.token_urlsafe(6)[:8]
-    await create_session(session_id)
-    return CreateSessionResponse(session_id=session_id)
+    for _ in range(5):
+        session_id = secrets.token_urlsafe(8)[:8]
+        try:
+            await create_session(session_id)
+            return CreateSessionResponse(session_id=session_id)
+        except Exception:
+            continue
+    raise HTTPException(status_code=500, detail="Failed to generate unique session ID")
 
 
 @app.get("/api/sessions")
@@ -99,10 +120,16 @@ async def update_session(session_id: str, data: dict):
 
 @app.post("/api/session/{session_id}/card", response_model=Card)
 async def add_card(session_id: str, card_data: CreateCardRequest):
-    print(f"[API] Adding card: session={session_id}, author={card_data.author}, category={card_data.category}")
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    existing_cards = await get_cards(session_id)
+    if len(existing_cards) >= MAX_CARDS_PER_SESSION:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Session has reached the maximum of {MAX_CARDS_PER_SESSION} cards"
+        )
 
     card = await create_card(
         session_id=session_id,
@@ -112,7 +139,6 @@ async def add_card(session_id: str, card_data: CreateCardRequest):
     )
 
     card_obj = Card(**card)
-    print(f"[API] Card created with ID: {card_obj.id}, broadcasting to session {session_id}")
     await ws_manager.broadcast(
         session_id,
         {"event": "card_added", "data": card_obj.model_dump(mode="json")}
@@ -143,19 +169,21 @@ async def modify_card(card_id: int, update_data: UpdateCardRequest):
 
 
 @app.delete("/api/card/{card_id}")
-async def remove_card(card_id: int):
+async def remove_card(card_id: int, author: str = Query(...)):
     from .database import get_db
 
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT session_id FROM cards WHERE id = ?",
+            "SELECT session_id, author FROM cards WHERE id = ?",
             (card_id,)
         )
         row = await cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Card not found")
         session_id = row["session_id"]
+        if row["author"] != author:
+            raise HTTPException(status_code=403, detail="You can only delete your own cards")
     finally:
         await db.close()
 

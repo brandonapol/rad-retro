@@ -10,10 +10,13 @@ export function AddCardButton({ category: _category, onAdd }: AddCardButtonProps
   const [isOpen, setIsOpen] = useState(false);
   const [content, setContent] = useState("");
 
+  const MAX_CONTENT_LENGTH = 1000;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (content.trim()) {
-      onAdd(content.trim());
+    const trimmed = content.trim();
+    if (trimmed && trimmed.length <= MAX_CONTENT_LENGTH) {
+      onAdd(trimmed);
       setContent("");
       setIsOpen(false);
     }
@@ -40,7 +43,9 @@ export function AddCardButton({ category: _category, onAdd }: AddCardButtonProps
         rows={3}
         autoFocus
         required
+        maxLength={MAX_CONTENT_LENGTH}
       />
+      <p className="text-xs text-white/50 text-right">{content.length}/{MAX_CONTENT_LENGTH}</p>
       <div className="flex gap-2">
         <button
           type="submit"

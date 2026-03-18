@@ -6,6 +6,7 @@ interface RetroColumnProps {
   title: string;
   category: CategoryType;
   cards: CardType[];
+  currentUser: string;
   onAddCard: (content: string) => void;
   onDeleteCard: (id: number) => void;
 }
@@ -30,6 +31,7 @@ export function RetroColumn({
   title,
   category,
   cards,
+  currentUser,
   onAddCard,
   onDeleteCard,
 }: RetroColumnProps) {
@@ -40,7 +42,7 @@ export function RetroColumn({
       <h2 className={`text-xl font-bold mb-4 ${headerColors[category]}`}>{title}</h2>
       <div className="flex-1 space-y-3 mb-4 overflow-y-auto">
         {cards.map((card) => (
-          <Card key={card.id} card={card} onDelete={onDeleteCard} />
+          <Card key={card.id} card={card} currentUser={currentUser} onDelete={onDeleteCard} />
         ))}
       </div>
       <AddCardButton category={category} onAdd={onAddCard} />

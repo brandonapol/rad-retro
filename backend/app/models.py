@@ -8,8 +8,8 @@ CategoryType = Literal["well", "badly", "continue", "kudos", "actionables"]
 
 class CreateCardRequest(BaseModel):
     category: CategoryType
-    content: str = Field(..., min_length=1)
-    author: str = Field(..., min_length=1)
+    content: str = Field(..., min_length=1, max_length=1000)
+    author: str = Field(..., min_length=1, max_length=100)
 
 
 class UpdateCardRequest(BaseModel):

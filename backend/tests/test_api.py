@@ -228,7 +228,7 @@ async def test_delete_card(client):
     card = await create_card(session_id, "well", "Delete me", "Alice")
     card_id = card["id"]
 
-    response = await client.delete(f"/api/card/{card_id}")
+    response = await client.delete(f"/api/card/{card_id}?author=Alice")
     assert response.status_code == 200
     assert response.json()["success"] == True
 
@@ -238,8 +238,19 @@ async def test_delete_card(client):
 
 
 @pytest.mark.asyncio
+async def test_delete_card_wrong_author(client):
+    session_id = "testauth"
+    await create_session(session_id)
+    card = await create_card(session_id, "well", "My card", "Alice")
+    card_id = card["id"]
+
+    response = await client.delete(f"/api/card/{card_id}?author=Bob")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_delete_nonexistent_card(client):
-    response = await client.delete("/api/card/9999")
+    response = await client.delete("/api/card/9999?author=Alice")
     assert response.status_code == 404
 
 
