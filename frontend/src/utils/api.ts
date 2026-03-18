@@ -45,10 +45,11 @@ export async function updateCard(
   return response.json();
 }
 
-export async function deleteCard(cardId: number): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/card/${cardId}`, {
-    method: "DELETE",
-  });
+export async function deleteCard(cardId: number, author: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/card/${cardId}?author=${encodeURIComponent(author)}`,
+    { method: "DELETE" }
+  );
   if (!response.ok) throw new Error("Failed to delete card");
 }
 

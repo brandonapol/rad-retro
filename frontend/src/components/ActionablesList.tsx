@@ -14,8 +14,8 @@ export function ActionablesList({
     try {
       await updateCard(card.id, { completed: !card.completed });
       onToggle(card.id, !card.completed);
-    } catch (error) {
-      console.error("Failed to toggle actionable:", error);
+    } catch {
+      // silently ignore; WS will sync state
     }
   };
 

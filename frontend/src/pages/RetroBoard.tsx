@@ -10,12 +10,9 @@ import { ActiveUsers } from "../components/ActiveUsers";
 import { exportToCSV } from "../utils/exportCSV";
 
 export function RetroBoard() {
-  console.log("[RETROBOARD] Component rendered");
   const { sessionId } = useParams<{ sessionId: string }>();
-  console.log("[RETROBOARD] sessionId:", sessionId);
   const [cards, setCards] = useState<Card[]>([]);
   const [userName, setUserName] = useState<string>("");
-  console.log("[RETROBOARD] userName state:", userName);
   const [isEditingName, setIsEditingName] = useState<boolean>(false);
   const [boardName, setBoardName] = useState<string>("");
   const [isEditingBoardName, setIsEditingBoardName] = useState<boolean>(false);
@@ -34,55 +31,38 @@ export function RetroBoard() {
         }
         setLoading(false);
       })
-      .catch((err) => {
-        console.error("Failed to load session:", err);
+      .catch(() => {
         setError("Failed to load session");
         setLoading(false);
       });
   }, [sessionId]);
 
   const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
-    console.log("[RETROBOARD] handleWebSocketMessage called");
-    console.log("[FRONTEND WS] Received message:", message.event, message.data);
-
     if (message.event === "card_added") {
       const card = message.data as Card;
-      console.log("[FRONTEND WS] Adding card to state:", card.id);
       setCards((prev) => [...prev, card]);
     } else if (message.event === "card_updated") {
       const card = message.data as Card;
-      console.log("[FRONTEND WS] Updating card in state:", card.id);
-      setCards((prev) =>
-        prev.map((c) => (c.id === card.id ? card : c))
-      );
+      setCards((prev) => prev.map((c) => (c.id === card.id ? card : c)));
     } else if (message.event === "card_deleted") {
       const { id } = message.data as { id: number };
-      console.log("[FRONTEND WS] Removing card from state:", id);
       setCards((prev) => prev.filter((c) => c.id !== id));
     } else if (message.event === "user_list") {
       const { users } = message.data as { users: string[] };
-      console.log("[FRONTEND WS] Updating active users:", users);
       setActiveUsers(users);
     } else if (message.event === "board_cleared") {
-      console.log("[FRONTEND WS] Clearing all cards");
       setCards([]);
     }
   }, []);
 
-  // Only connect to WebSocket after username is set
-  console.log("[RETROBOARD] About to call useWebSocket with userName:", userName || "Anonymous");
-  useWebSocket(sessionId || "", userName || "Anonymous", handleWebSocketMessage);
-  console.log("[RETROBOARD] useWebSocket hook called");
+  useWebSocket(sessionId || "", userName, handleWebSocketMessage);
 
   const handleAddCard = async (category: string, content: string) => {
     if (!sessionId || !userName) return;
-
-    console.log("[FRONTEND API] Calling addCard:", { sessionId, category, userName, content });
     try {
-      const result = await addCard(sessionId, category as any, content, userName);
-      console.log("[FRONTEND API] Card added successfully:", result);
-    } catch (error) {
-      console.error("[FRONTEND API] Failed to add card:", error);
+      await addCard(sessionId, category as any, content, userName);
+    } catch {
+      // WS broadcast will update state; silently ignore HTTP errors
     }
   };
 
@@ -91,9 +71,7 @@ export function RetroBoard() {
   };
 
   const handleToggleActionable = (id: number, completed: boolean) => {
-    setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, completed } : c))
-    );
+    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, completed } : c)));
   };
 
   const handleCopyUrl = () => {
@@ -117,9 +95,7 @@ export function RetroBoard() {
 
     try {
       await clearBoard(sessionId);
-      console.log("[FRONTEND] Board cleared successfully");
-    } catch (error) {
-      console.error("[FRONTEND] Failed to clear board:", error);
+    } catch {
       alert("Failed to clear board. Please try again.");
     }
   };
@@ -147,8 +123,8 @@ export function RetroBoard() {
     if (sessionId && trimmedName) {
       try {
         await updateSessionName(sessionId, trimmedName);
-      } catch (error) {
-        console.error("Failed to save board name:", error);
+      } catch {
+        // Non-critical — board name may not persist but UX is not broken
       }
     }
   };
@@ -264,6 +240,7 @@ export function RetroBoard() {
               title="What Went Well"
               category="well"
               cards={wellCards}
+              currentUser={userName}
               onAddCard={(content) => handleAddCard("well", content)}
               onDeleteCard={handleDeleteCard}
             />
@@ -271,6 +248,7 @@ export function RetroBoard() {
               title="What Went Badly"
               category="badly"
               cards={badlyCards}
+              currentUser={userName}
               onAddCard={(content) => handleAddCard("badly", content)}
               onDeleteCard={handleDeleteCard}
             />
@@ -278,6 +256,7 @@ export function RetroBoard() {
               title="Continue Doing"
               category="continue"
               cards={continueCards}
+              currentUser={userName}
               onAddCard={(content) => handleAddCard("continue", content)}
               onDeleteCard={handleDeleteCard}
             />
@@ -285,6 +264,7 @@ export function RetroBoard() {
               title="Kudos"
               category="kudos"
               cards={kudosCards}
+              currentUser={userName}
               onAddCard={(content) => handleAddCard("kudos", content)}
               onDeleteCard={handleDeleteCard}
             />
